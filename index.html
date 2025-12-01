@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>키오스크 주문 시스템</title>
+    <!-- Tailwind CSS 로드 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 기본 글꼴 설정 및 전체 화면 스타일 */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f7f7;
+            touch-action: manipulation; /* 터치 환경 최적화 */
+        }
+        /* 사용자 요청에 따른 3840px 고정 세로 높이 적용 */
+        .kiosk-height {
+            height: 3840px; 
+            min-height: 3840px;
+        }
+
+        /* 항목 버튼에 호버/액티브 효과 추가 */
+        .item-card {
+            transition: transform 0.1s ease-in-out, box-shadow 0.1s ease-in-out;
+            cursor: pointer;
+        }
+        .item-card:active {
+            transform: scale(0.98);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+        }
+        /* 키오스크 환경에 맞게 스크롤바 숨김 */
+        .scroll-area::-webkit-scrollbar {
+            display: none;
+        }
+        .scroll-area {
+            -ms-overflow-style: none; /* IE and Edge */
+            scrollbar-width: none; /* Firefox */
+        }
+        /* 하단 장바구니 영역 고정 */
+        .footer-cart {
+            height: 120px; /* 충분한 높이 확보 */
+        }
+        /* 큰 버튼 스타일 */
+        .kiosk-btn {
+            padding: 2rem 1.5rem; /* 터치 영역 최대화 */
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="kiosk-height flex flex-col">
+
+    <!-- 1. 상단 헤더: 로고 및 전역 설정 -->
+    <header class="bg-white shadow-md p-4 flex justify-between items-center z-10">
+        <div class="text-4xl font-extrabold text-blue-600">
+            주문 키오스크
+        </div>
+        <div class="flex space-x-4">
+            <!-- 언어 선택 등 큰 버튼 -->
+            <button class="kiosk-btn bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 text-lg">
+                언어
+            </button>
+            <button onclick="resetOrder()" class="kiosk-btn bg-red-100 text-red-600 rounded-xl hover:bg-red-200 text-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 inline-block mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7 1.5a.75.75 0 00-.75-.75h-7.5a.75.75 0 00-.75.75v7.5a.75.75 0 00.75.75h7.5a.75.75 0 00.75-.75v-7.5z" />
+                </svg>
+                처음으로
+            </button>
+        </div>
+    </header>
+
+    <!-- 2. 메인 콘텐츠 영역: 카테고리 + 메뉴판 -->
+    <main class="flex-grow flex overflow-hidden">
+        
+        <!-- 왼쪽: 카테고리 메뉴 (고정 폭) -->
+        <nav class="w-1/5 bg-gray-50 border-r border-gray-200 p-4 flex flex-col space-y-4 scroll-area overflow-y-auto">
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">카테고리</h2>
+            <!-- 카테고리 버튼: 크고 명확하게 -->
+            <button class="kiosk-btn bg-blue-600 text-white rounded-xl shadow-lg" data-category="coffee">☕ 커피</button>
+            <button class="kiosk-btn bg-white text-gray-700 border-2 border-gray-200 rounded-xl hover:bg-gray-100" data-category="tea">🫖 티</button>
+            <button class="kiosk-btn bg-white text-gray-700 border-2 border-gray-200 rounded-xl hover:bg-gray-100" data-category="ade">🍹 에이드/주스</button>
+            <button class="kiosk-btn bg-white text-gray-700 border-2 border-gray-200 rounded-xl hover:bg-gray-100" data-category="bakery">🥐 베이커리</button>
+            <button class="kiosk-btn bg-white text-gray-700 border-2 border-gray-200 rounded-xl hover:bg-gray-100" data-category="seasonal">🍓 시즌 메뉴</button>
+        </nav>
+
+        <!-- 오른쪽: 메뉴 항목 그리드 (유동 폭) -->
+        <section id="menu-items" class="flex-grow p-6 grid grid-cols-3 gap-6 content-start scroll-area overflow-y-auto">
+            <!-- 메뉴 항목이 여기에 동적으로 추가됩니다 -->
+        </section>
+        
+    </main>
+
+    <!-- 3. 하단 푸터: 주문 요약 및 결제 버튼 (고정) -->
+    <footer class="footer-cart bg-gray-800 text-white p-4 flex justify-between items-center sticky bottom-0 z-20">
+        <div id="cart-summary" class="flex flex-col">
+            <span class="text-2xl font-medium">총 항목: <span id="item-count" class="font-extrabold text-yellow-400">0</span>개</span>
+            <span class="text-4xl font-bold mt-1">총 금액: <span id="total-price" class="font-extrabold text-yellow-400">0</span>원</span>
+        </div>
+        
+        <!-- 결제 버튼: 가장 크고 눈에 띄게 -->
+        <button id="checkout-button" onclick="checkout()" disabled class="kiosk-btn bg-green-500 text-white rounded-xl shadow-2xl hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed">
+            주문하기 / 결제 (0)
+        </button>
+    </footer>
+
+    <script>
+        // Firebase 및 API 키는 환경 변수를 통해 제공됩니다.
+        const apiKey = "";
+        
+        // --- 더미 데이터 (실제로는 Firestore에서 가져옴) ---
+        // 3840px 높이를 활용하기 위해 더미 데이터를 더 추가했습니다.
+        const menuData = [
+            { id: 1, name: "아메리카노", category: "coffee", price: 4500, img: "https://placehold.co/150x150/000/fff?text=Ame" },
+            { id: 2, name: "카페 라떼", category: "coffee", price: 5000, img: "https://placehold.co/150x150/8B4513/fff?text=Latte" },
+            { id: 3, name: "카라멜 마키아또", category: "coffee", price: 5500, img: "https://placehold.co/150x150/FF8C00/fff?text=Cara" },
+            { id: 4, name: "얼그레이", category: "tea", price: 4000, img: "https://placehold.co/150x150/3CB371/fff?text=Earl" },
+            { id: 5, name: "레몬 에이드", category: "ade", price: 6000, img: "https://placehold.co/150x150/FFD700/000?text=Lemon" },
+            { id: 6, name: "크로와상", category: "bakery", price: 3500, img: "https://placehold.co/150x150/F08080/fff?text=Croi" },
+            { id: 7, name: "바닐라 딜라이트", category: "coffee", price: 5500, img: "https://placehold.co/150x150/D2B48C/000?text=Vani" },
+            // 세로 길이가 길어진 만큼 더 많은 메뉴를 가정하여 추가
+            { id: 8, name: "초코 머핀", category: "bakery", price: 4000, img: "https://placehold.co/150x150/654321/fff?text=Muffin" },
+            { id: 9, name: "스트로베리 스무디", category: "seasonal", price: 7000, img: "https://placehold.co/150x150/FF69B4/fff?text=Smoothie" },
+            { id: 10, name: "민트 초코 라떼", category: "coffee", price: 5200, img: "https://placehold.co/150x150/008080/fff?text=Mint" },
+            { id: 11, name: "페퍼민트 티", category: "tea", price: 4200, img: "https://placehold.co/150x150/8FBC8F/000?text=Pepp" },
+            { id: 12, name: "자몽 에이드", category: "ade", price: 6500, img: "https://placehold.co/150x150/FFA07A/000?text=Grape" },
+            { id: 13, name: "허니 브레드", category: "bakery", price: 5000, img: "https://placehold.co/150x150/DAA520/000?text=Bread" },
+            { id: 14, name: "콜드 브루", category: "coffee", price: 5000, img: "https://placehold.co/150x150/4682B4/fff?text=Cold" },
+            { id: 15, name: "녹차 라떼", category: "tea", price: 4800, img: "https://placehold.co/150x150/006400/fff?text=Green" },
+            { id: 16, name: "망고 주스", category: "ade", price: 7500, img: "https://placehold.co/150x150/FFDAB9/000?text=Mango" },
+            { id: 17, name: "치즈 케이크", category: "bakery", price: 6000, img: "https://placehold.co/150x150/F0E68C/000?text=Cheese" },
+            { id: 18, name: "헤이즐넛 아메리카노", category: "coffee", price: 5000, img: "https://placehold.co/150x150/A0522D/fff?text=Haze" },
+            { id: 19, name: "블랙 티", category: "tea", price: 4000, img: "https://placehold.co/150x150/696969/fff?text=Black" },
+            { id: 20, name: "수박 주스", category: "seasonal", price: 7000, img: "https://placehold.co/150x150/FF4500/fff?text=Water" },
+            { id: 21, name: "캬라멜 팝콘", category: "bakery", price: 4500, img: "https://placehold.co/150x150/E9967A/000?text=Popc" },
+        ];
+
+        let currentOrder = [];
+        const menuItemsContainer = document.getElementById('menu-items');
+        const itemCountSpan = document.getElementById('item-count');
+        const totalPriceSpan = document.getElementById('total-price');
+        const checkoutButton = document.getElementById('checkout-button');
+
+        // --- 유틸리티 함수 ---
+
+        // 금액을 원화 포맷으로 변환
+        function formatPrice(price) {
+            return price.toLocaleString('ko-KR') + '원';
+        }
+
+        // --- UI 렌더링 함수 ---
+
+        // 메뉴 항목을 카드 형태로 렌더링
+        function renderMenuItems(category) {
+            menuItemsContainer.innerHTML = ''; // 기존 항목 초기화
+            
+            const filteredItems = category === 'all' 
+                ? menuData 
+                : menuData.filter(item => item.category === category);
+
+            if (filteredItems.length === 0) {
+                // 긴 화면에 맞게 텍스트 크기 증가
+                menuItemsContainer.innerHTML = `<p class="text-5xl text-gray-500 col-span-3 mt-40 text-center">선택하신 카테고리에 현재 메뉴가 없습니다.</p>`;
+                return;
+            }
+
+            filteredItems.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'item-card bg-white rounded-3xl shadow-2xl p-6 text-center border-4 border-transparent hover:border-blue-500 transition-all'; // 카드 디자인 약간 키움
+                card.onclick = () => addItemToOrder(item);
+
+                card.innerHTML = `
+                    <img src="${item.img}" onerror="this.onerror=null; this.src='https://placehold.co/200x200/ccc/000?text=No+Img';" class="w-full h-auto object-cover rounded-xl mb-6 mx-auto" alt="${item.name}">
+                    <h3 class="text-4xl font-bold text-gray-900 truncate">${item.name}</h3>
+                    <p class="text-3xl font-extrabold text-red-600 mt-4">${formatPrice(item.price)}</p>
+                    <div class="mt-4 text-2xl text-gray-500">터치하여 추가</div>
+                `;
+                menuItemsContainer.appendChild(card);
+            });
+        }
+
+        // 장바구니 요약 업데이트
+        function updateCartSummary() {
+            const totalCount = currentOrder.length;
+            const totalPrice = currentOrder.reduce((sum, item) => sum + item.price, 0);
+
+            itemCountSpan.textContent = totalCount;
+            totalPriceSpan.textContent = formatPrice(totalPrice);
+            checkoutButton.textContent = `주문하기 / 결제 (${totalCount})`;
+            
+            // 주문이 있으면 결제 버튼 활성화
+            checkoutButton.disabled = totalCount === 0;
+            if (totalCount > 0) {
+                checkoutButton.classList.remove('bg-gray-500');
+                checkoutButton.classList.add('bg-green-500');
+            } else {
+                checkoutButton.classList.remove('bg-green-500');
+                checkoutButton.classList.add('bg-gray-500');
+            }
+        }
+
+        // --- 상호 작용 함수 ---
+
+        // 항목 추가 (키오스크는 보통 상세 옵션 없이 빠르게 추가)
+        function addItemToOrder(item) {
+            // 실제 키오스크에서는 여기서 옵션 모달을 띄우지만, 여기서는 기본 항목만 추가
+            currentOrder.push(item);
+            updateCartSummary();
+            showTemporaryMessage(`${item.name} (이/가) 추가되었습니다.`, 'green');
+        }
+
+        // 결제 버튼 클릭 시 (실제로는 결제 화면으로 이동)
+        function checkout() {
+            if (currentOrder.length === 0) {
+                showTemporaryMessage('주문 항목을 먼저 선택해 주세요.', 'red');
+                return;
+            }
+            // 임시 메시지 창 대신 커스텀 모달 사용
+            showOrderModal();
+        }
+
+        // 주문 초기화
+        function resetOrder() {
+            currentOrder = [];
+            updateCartSummary();
+            showTemporaryMessage('주문이 초기화되었습니다.', 'red');
+        }
+
+        // 카테고리 선택 핸들러
+        function handleCategorySelect(event) {
+            const categoryButtons = document.querySelectorAll('nav button');
+            categoryButtons.forEach(btn => {
+                btn.classList.remove('bg-blue-600', 'text-white', 'border-2', 'border-gray-200');
+                btn.classList.add('bg-white', 'text-gray-700', 'border-2', 'border-gray-200', 'hover:bg-gray-100');
+            });
+
+            event.target.classList.remove('bg-white', 'text-gray-700', 'border-2', 'border-gray-200', 'hover:bg-gray-100');
+            event.target.classList.add('bg-blue-600', 'text-white', 'shadow-lg');
+
+            const category = event.target.dataset.category;
+            renderMenuItems(category);
+        }
+
+        // --- 모달 및 메시지 UI (alert/confirm 대체) ---
+        
+        // 임시 메시지 표시
+        function showTemporaryMessage(message, type) {
+            const messageBox = document.createElement('div');
+            // 긴 화면에서도 잘 보이도록 top 위치 조정 및 텍스트 크기 증가
+            messageBox.className = `fixed top-60 right-1/2 translate-x-1/2 p-6 text-4xl font-bold rounded-2xl shadow-2xl z-50 transition-opacity duration-300 ${type === 'red' ? 'bg-red-500' : 'bg-green-500'} text-white`;
+            messageBox.textContent = message;
+            document.body.appendChild(messageBox);
+            
+            setTimeout(() => {
+                messageBox.classList.add('opacity-0');
+                messageBox.addEventListener('transitionend', () => messageBox.remove());
+            }, 2000);
+        }
+
+        // 주문 확인 모달 (결제 화면 대체)
+        function showOrderModal() {
+            const total = currentOrder.reduce((sum, item) => sum + item.price, 0);
+            const modalHtml = `
+                <div id="order-modal-backdrop" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+                    <div class="bg-white rounded-3xl p-12 w-4/5 max-w-5xl shadow-2xl">
+                        <h2 class="text-6xl font-extrabold text-gray-900 mb-8 border-b pb-6">🧾 주문 확인 및 결제</h2>
+                        <div class="max-h-[50vh] overflow-y-auto mb-8 scroll-area">
+                            ${currentOrder.map(item => `
+                                <div class="flex justify-between items-center py-5 border-b">
+                                    <span class="text-4xl">${item.name}</span>
+                                    <span class="text-4xl font-semibold">${formatPrice(item.price)}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="flex justify-between items-center bg-yellow-100 p-8 rounded-xl mb-10">
+                            <span class="text-5xl font-bold text-gray-800">최종 결제 금액</span>
+                            <span class="text-6xl font-extrabold text-red-600">${formatPrice(total)}</span>
+                        </div>
+                        <div class="flex justify-end space-x-8">
+                            <button onclick="closeModal()" class="kiosk-btn bg-gray-300 text-gray-800 rounded-xl hover:bg-gray-400 text-2xl">
+                                취소하고 돌아가기
+                            </button>
+                            <button onclick="simulatePayment(true)" class="kiosk-btn bg-green-600 text-white rounded-xl hover:bg-green-700 text-2xl">
+                                카드 결제 진행
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+
+        function closeModal() {
+            document.getElementById('order-modal-backdrop')?.remove();
+        }
+
+        function simulatePayment(success) {
+            closeModal();
+            if (success) {
+                showTemporaryMessage('결제가 완료되었습니다. 주문번호: 1004', 'green');
+                resetOrder();
+            } else {
+                showTemporaryMessage('결제에 실패했습니다. 다시 시도해 주세요.', 'red');
+            }
+        }
+
+
+        // --- 초기화 ---
+        
+        // 이벤트 리스너 등록
+        document.querySelectorAll('nav button').forEach(button => {
+            button.addEventListener('click', handleCategorySelect);
+        });
+
+        // 초기 로드: 첫 번째 카테고리 활성화 및 렌더링
+        window.onload = () => {
+            const initialCategoryButton = document.querySelector('nav button[data-category="coffee"]');
+            if (initialCategoryButton) {
+                initialCategoryButton.click(); // 'coffee' 카테고리 활성화
+            } else {
+                renderMenuItems('all'); // 버튼이 없으면 전체 메뉴 로드
+            }
+            updateCartSummary();
+        };
+
+    </script>
+</body>
+</html>
